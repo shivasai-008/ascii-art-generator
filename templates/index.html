@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Art Generator | Image to ASCII</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-badge">SYSTEM // ACTIVE</div>
+            <h1>AI-Based Image to ASCII Art Generator</h1>
+            <p class="subtitle">Transform any image into high-resolution monospace ASCII art and retro matrix renders</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
+                    {% for category, message in messages %}
+                        <div class="flash-alert flash-{{ category }}">
+                            <span class="flash-icon">
+                                {% if category == 'error' %}⚠️{% elif category == 'warning' %}⚡{% else %}ℹ️{% endif %}
+                            </span>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="card upload-card">
+            <form action="{{ url_for('index') }}" method="POST" enctype="multipart/form-data" id="upload-form">
+                <div class="drop-zone" id="drop-zone">
+                    <div class="drop-icon">📁</div>
+                    <h3>Drag & Drop your image here</h3>
+                    <p>or click to browse from your device</p>
+                    <span class="file-support">Supports PNG, JPG, JPEG, BMP, WEBP (Max 10 MB)</span>
+                    <input type="file" name="image" id="file-input" accept=".png,.jpg,.jpeg,.bmp,.webp" required>
+                </div>
+                <div id="file-selected" class="file-selected" style="display: none;">
+                    <span class="file-name" id="file-name"></span>
+                    <button type="button" class="btn-clear" id="btn-clear">✕ Clear</button>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-submit">
+                    <span class="btn-text">Generate ASCII Art</span>
+                    <span class="btn-loader" style="display: none;">Processing...</span>
+                </button>
+            </form>
+        </section>
+
+        {% if ascii_art %}
+        <section class="results-section">
+            <div class="results-header">
+                <h2>Generated ASCII Art Results</h2>
+                <div class="actions">
+                    <a href="{{ ascii_image_path }}" download="{{ download_filename }}" class="btn btn-download">
+                        💾 Download Rendered PNG
+                    </a>
+                    <button class="btn btn-copy" id="btn-copy">
+                        📋 Copy Raw ASCII
+                    </button>
+                </div>
+            </div>
+
+            <div class="results-grid">
+                <!-- Panel 1: Original Image -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>1. Original Image</h3>
+                    </div>
+                    <div class="panel-body img-box">
+                        <img src="{{ image_path }}" alt="Original Upload" class="preview-img">
+                    </div>
+                </div>
+
+                <!-- Panel 2: Rendered Styled PNG -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>2. Rendered Graphic (PNG)</h3>
+                    </div>
+                    <div class="panel-body img-box">
+                        <img src="{{ ascii_image_path }}" alt="Rendered ASCII" class="preview-img matrix-glow">
+                    </div>
+                </div>
+
+                <!-- Panel 3: Monospace ASCII Text -->
+                <div class="panel panel-wide">
+                    <div class="panel-header">
+                        <h3>3. Raw Monospace ASCII Text</h3>
+                        <span class="char-count" id="copy-status"></span>
+                    </div>
+                    <div class="panel-body ascii-box">
+                        <pre id="ascii-text">{{ ascii_art }}</pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <footer class="footer">
+            <p>AI-Based Image to ASCII Art Generator • 6-Module Pipeline • Open & Accessible</p>
+        </footer>
+    </div>
+
+    <script>
+        // Drop zone interaction
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileSelected = document.getElementById('file-selected');
+        const fileNameSpan = document.getElementById('file-name');
+        const btnClear = document.getElementById('btn-clear');
+        const uploadForm = document.getElementById('upload-form');
+        const btnSubmit = document.getElementById('btn-submit');
+        const btnText = btnSubmit ? btnSubmit.querySelector('.btn-text') : null;
+        const btnLoader = btnSubmit ? btnSubmit.querySelector('.btn-loader') : null;
+
+        if (dropZone && fileInput) {
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-active');
+            });
+            ['dragleave', 'dragend'].forEach(type => {
+                dropZone.addEventListener(type, () => dropZone.classList.remove('drag-active'));
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-active');
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileSelect();
+                }
+            });
+            fileInput.addEventListener('change', handleFileSelect);
+        }
+
+        function handleFileSelect() {
+            if (fileInput.files && fileInput.files[0]) {
+                fileNameSpan.textContent = fileInput.files[0].name;
+                fileSelected.style.display = 'flex';
+                dropZone.style.display = 'none';
+            }
+        }
+
+        if (btnClear) {
+            btnClear.addEventListener('click', () => {
+                fileInput.value = '';
+                fileSelected.style.display = 'none';
+                dropZone.style.display = 'block';
+            });
+        }
+
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', () => {
+                if (btnText && btnLoader) {
+                    btnText.style.display = 'none';
+                    btnLoader.style.display = 'inline-block';
+                    btnSubmit.disabled = true;
+                }
+            });
+        }
+
+        // Copy ASCII Text Button
+        const btnCopy = document.getElementById('btn-copy');
+        const asciiText = document.getElementById('ascii-text');
+        const copyStatus = document.getElementById('copy-status');
+
+        if (btnCopy && asciiText) {
+            btnCopy.addEventListener('click', () => {
+                navigator.clipboard.writeText(asciiText.innerText).then(() => {
+                    const originalText = btnCopy.textContent;
+                    btnCopy.textContent = '✅ Copied!';
+                    if (copyStatus) copyStatus.textContent = 'Copied to clipboard!';
+                    setTimeout(() => {
+                        btnCopy.textContent = originalText;
+                        if (copyStatus) copyStatus.textContent = '';
+                    }, 2500);
+                }).catch(err => {
+                    alert('Could not copy text: ' + err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
